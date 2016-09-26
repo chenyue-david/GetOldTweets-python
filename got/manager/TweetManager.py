@@ -1,4 +1,4 @@
-import urllib,urllib2,json,re,datetime,sys,cookielib
+import urllib,urllib2,json,re,datetime,sys,cookielib 
 from .. import models
 from pyquery import PyQuery
 
@@ -78,9 +78,13 @@ class TweetManager:
 	
 	@staticmethod
 	def getJsonReponse(tweetCriteria, refreshCursor, cookieJar):
-		url = "https://twitter.com/i/search/timeline?f=tweets&q=%s&src=typd&max_position=%s"
+
+		url = "https://twitter.com/i/search/timeline?f=realtime&q=%s&src=typd&max_position=%s"
 		
 		urlGetData = ''
+		if hasattr(tweetCriteria, 'querySearch'):
+			urlGetData += tweetCriteria.querySearch
+
 		if hasattr(tweetCriteria, 'username'):
 			urlGetData += ' from:' + tweetCriteria.username
 			
@@ -89,9 +93,6 @@ class TweetManager:
 			
 		if hasattr(tweetCriteria, 'until'):
 			urlGetData += ' until:' + tweetCriteria.until
-			
-		if hasattr(tweetCriteria, 'querySearch'):
-			urlGetData += ' ' + tweetCriteria.querySearch
 
 		if hasattr(tweetCriteria, 'topTweets'):
 			if tweetCriteria.topTweets:
@@ -109,7 +110,9 @@ class TweetManager:
 			('Connection', "keep-alive")
 		]
 
-		opener = urllib2.build_opener(urllib2.HTTPCookieProcessor(cookieJar))
+		proxy = {'http':'http://127.0.0.1:1080', 'https':'https://127.0.0.1:1080'}
+		proxy_support = urllib2.ProxyHandler(proxy)
+		opener = urllib2.build_opener(urllib2.HTTPCookieProcessor(cookieJar), proxy_support)
 		opener.addheaders = headers
 
 		try:

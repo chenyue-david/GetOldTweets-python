@@ -26,3 +26,7 @@ class TweetCriteria:
 	def setTopTweets(self, topTweets):
 		self.topTweets = topTweets
 		return self
+
+	def setLang(self, Lang):
+		self.lang = Lang
+		return self
