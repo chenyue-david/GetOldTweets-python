@@ -4,11 +4,24 @@ from datetime import timedelta
 from time import strftime
 from time import sleep
 import shadowsocks
+import sys
+import os
+import logging
+import signal
+import pickle
+import multiprocessing
+import random
+from shadowsocks import shell, daemon, eventloop, tcprelay, udprelay, asyncdns
 
-def crawl1DayTweet(f, currentDate):
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), '../'))
+
+#extract tweets of a certain day
+def crawl1DayTweet(f, currentDate, company, lang):
 	s = strftime("%Y-%m-%d", currentDate.timetuple())
 	e = strftime("%Y-%m-%d", (currentDate + timedelta(1)).timetuple())
-	tweetCriteria = got.manager.TweetCriteria().setQuerySearch('$aapl').setLang('en').setSince(s).setUntil(e).setMaxTweets(10000)
+
+	#In got/manager/TweetCriteria.py, you can find what parameters can be set.
+	tweetCriteria = got.manager.TweetCriteria().setQuerySearch(company).setLang(lang).setSince(s).setUntil(e).setMaxTweets(10000)
 	tweets = got.manager.TweetManager.getTweets(tweetCriteria)
 	if tweets == None:
 		return False
@@ -19,16 +32,7 @@ def crawl1DayTweet(f, currentDate):
 			+ '\t' + t.hashtags.encode('utf-8') + '\t' + t.mentions.encode('utf-8') + '\t' + t.permalink.encode('utf-8') + '\n')
 	return True
 
-configs = [{'log-file': '/var/log/shadowsocks.log', 'localPort': 1080, 'local_port': 1080, 'shareOverLan': True, 'workers': 1, 'fast_open': False, 'timeout': 300, 'server': 'us01-54.ssv7.net', 'port_password': None, 'server_port': 24052, 'remarks': 'us01', 'local_address': '127.0.0.1', 'pid-file': '/var/run/shadowsocks.pid', 'password': 'USKjZVQyVNeS', 'method': 'aes-256-cfb', 'verbose': False}]
-
-import sys
-import os
-import logging
-import signal
-
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), '../'))
-from shadowsocks import shell, daemon, eventloop, tcprelay, udprelay, asyncdns
-
+#Copied from the source code of Shadowsocks, to cross th GFW.
 def deployProxy(configs, index):
 	config = configs[index]
 	try:
@@ -57,31 +61,49 @@ def deployProxy(configs, index):
 	except Exception as e:
 		raise
 
-import multiprocessing
-import random
-
 if __name__ == '__main__':
-	start_date = date(2015, 10, 1)
-	end_date = date(2015, 10, 1)
-	f = open('aapl-test-2', 'w')
+	#search condition
+	start_date = date(2015, 2, 1)
+	end_date = date(2015, 2, 2)
+	company = '$aapl'
+	lang = 'en'
+
+	#load Socks5 proxy settings
+	#(in proxy-configs, where I stored some proxys I used to cross the GFW,
+	#maybe you don't need it in America)
+	f = open('proxy-configs', 'rb')
+	configs = pickle.load(f)
+	f.close()
+
+	#open the file to save
+	f = open('aapl-test', 'w')
 	n = 0
-	#index = random.randint(0, len(configs) - 1)
+	index = random.randint(0, len(configs) - 1)
 	index = 0
+
+	#As Twitter may block the crawler, the proxy is changed randomly
+	#after crawling 1 day's tweets
 	while n <= int((end_date - start_date).days):
-		#old_index = index
-		#index = random.randint(0, len(configs) - 1)
-		#while (index == old_index):
-		#	index = random.randint(0, len(configs) - 1)
+		old_index = index
+		index = random.randint(0, len(configs) - 1)
+
+
+		while (index == old_index):
+			index = random.randint(0, len(configs) - 1)
+
 		single_date = start_date + timedelta(n)
+
 		p = multiprocessing.Process(target = deployProxy, args = (configs, index))
 		print('Using Proxy: %s' % configs[index]['remarks'])
 		p.start()
 		sleep(3)
 		print("crawling %s..." % strftime("%Y-%m-%d", single_date.timetuple()))
-		r = crawl1DayTweet(f, single_date)
+
+		r = crawl1DayTweet(f, single_date, company, lang)
 		if r:
 			print("%s done." % strftime("%Y-%m-%d", single_date.timetuple()))
 			n += 1
+
 		p.terminate()
 	f.close()
 
